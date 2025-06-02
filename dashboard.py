@@ -1,18 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
-import webbrowser
-
-# Open the browser automatically (only on first run)
-def auto_open_browser():
-    if not os.environ.get("_STREAMLIT_BROWSER_OPENED"):
-        webbrowser.open_new("http://localhost:8501")
-        os.environ["_STREAMLIT_BROWSER_OPENED"] = "1"
 
 st.set_page_config(page_title="US Economic Data Dashboard", layout="wide")
-auto_open_browser()
-
 EXCEL_FILE = 'USA.xlsx'
 
 sheet_names = [
@@ -28,42 +18,33 @@ sheet_names = [
 ]
 
 st.title("🇺🇸 US Economic Data Dashboard")
-st.write(
-    "Interactive dashboard of US economic indicators. "
-    "Select a data type on the left sidebar to view its chart."
-)
+st.write("Interactive dashboard of US economic indicators. Select a data type on the left sidebar to view its chart.")
 
-selected_sheet = st.sidebar.selectbox(
-    "Select Economic Indicator",
-    sheet_names
-)
+selected_sheet = st.sidebar.selectbox("Select Economic Indicator", sheet_names)
 
-# Try loading the sheet, handling possible format quirks
-try:
-    df = pd.read_excel(EXCEL_FILE, sheet_name=selected_sheet, skiprows=5)
-    indicator_name = df.iloc[0, 0]
-    years = df.columns[1:]
-    values = df.iloc[0, 1:].values
+# Try reading the sheet with multiple possible skiprows
+# Find the first row that contains "Line" or "Description" and treat it as the header
+for skip in range(5, 10):  # Try different rows for header
+    df = pd.read_excel(EXCEL_FILE, sheet_name=selected_sheet, skiprows=skip)
+    if "Line" in df.columns or "Description" in df.columns:
+        break
 
-    data = pd.DataFrame({
-        'Year': years,
-        'Value': values
-    })
-    data['Year'] = data['Year'].astype(str)
-    data = data.dropna()
+st.write("Raw data preview:")
+st.write(df.head(10))
 
-    fig = px.line(
-        data,
-        x='Year',
-        y='Value',
-        title=f"{indicator_name} Over Time",
-        markers=True,
-    )
-    fig.update_layout(xaxis_title="Year", yaxis_title=indicator_name)
-    st.plotly_chart(fig, use_container_width=True)
-except Exception as e:
-    st.error(f"Could not load data for {selected_sheet}. Error: {e}")
-    st.write("Please check your Excel file's formatting.")
+# Find the first non-empty indicator row (skip NaN)
+row_idx = df[df['Line'].notna()].index[0]
+row = df.loc[row_idx]
+years = df.columns[df.columns.str.match(r"^\d{4}$")]
+values = row[years].values
 
-st.markdown("---")
-st.caption("Created by [Your Name]. Powered by Streamlit & Plotly.")
+data = pd.DataFrame({
+    'Year': years,
+    'Value': values
+})
+
+data = data.dropna()
+
+fig = px.line(data, x='Year', y='Value', title=f"{selected_sheet} Over Time", markers=True)
+fig.update_layout(xaxis_title="Year", yaxis_title=selected_sheet)
+st.plotly_chart(fig, use_container_width=True)
