@@ -25,24 +25,82 @@ st.markdown("> Interactive dashboard for tracking key US macroeconomic indicator
 # Sidebar selector
 selected_sheet = st.sidebar.selectbox("Select Economic Indicator", list(sheet_dict.keys()), format_func=lambda x: sheet_dict[x])
 
-# Attempt to intelligently find the right header row
-df = None
-header_found = False
-for skip in range(5, 11):
-    try:
-        temp_df = pd.read_excel(EXCEL_FILE, sheet_name=selected_sheet, skiprows=skip)
-        columns = [str(col).strip() for col in temp_df.columns]
-        if any(col.lower() in ["line", "description"] for col in columns):
-            df = temp_df
-            df.columns = columns  # Clean up columns
-            header_found = True
-            break
-    except Exception as e:
-        continue
+def parse_unemployment_sheet(file, sheet_name):
+    df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None)
+    # Find row where first column is 'Year'
+    header_row = df_raw[df_raw.iloc[:,0] == 'Year'].index[0]
+    df = pd.read_excel(file, sheet_name=sheet_name, header=header_row)
+    # Drop empty columns
+    df = df.loc[:, ~df.columns.isna()]
+    # Only keep Year and months
+    months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    keep_cols = ['Year'] + months
+    df = df[keep_cols]
+    df = df.dropna(subset=['Year'])
+    df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+    for m in months:
+        df[m] = pd.to_numeric(df[m], errors='coerce')
+    df['Yearly Avg'] = df[months].mean(axis=1)
+    return df
 
-if not header_found or df is None:
-    st.error("Could not detect the header or the required columns in the sheet.")
-    st.stop()
+
+# Attempt to intelligently find the right header row
+if selected_sheet == 'Unemployment Rate':
+    df = parse_unemployment_sheet(EXCEL_FILE, selected_sheet)
+    data = pd.DataFrame({
+        'Year': df['Year'],
+        'Value': df['Yearly Avg']
+    }).dropna()
+    # YoY Growth
+    data['YoY Growth %'] = data['Value'].pct_change() * 100
+    title_extra = ""
+else:
+    # Attempt to intelligently find the right header row for all other sheets
+    df = None
+    header_found = False
+    for skip in range(5, 11):
+        try:
+            temp_df = pd.read_excel(EXCEL_FILE, sheet_name=selected_sheet, skiprows=skip)
+            columns = [str(col).strip() for col in temp_df.columns]
+            if any(col.lower() in ["line", "description"] for col in columns):
+                df = temp_df
+                df.columns = columns  # Clean up columns
+                header_found = True
+                break
+        except Exception as e:
+            continue
+    if not header_found or df is None:
+        st.error("Could not detect the header or the required columns in the sheet.")
+        st.stop()
+
+    # Intelligent column detection
+    indicator_col = None
+    for col in ["Description", "Line", "Indicator", "Unnamed: 0"]:
+        if col in df.columns:
+            indicator_col = col
+            break
+
+    # Find year columns (numeric column headers, often 4-digit)
+    year_cols = [col for col in df.columns if str(col).isdigit() and len(str(col)) == 4]
+    if not year_cols:
+        st.error("No year columns found! Data might be in an unexpected format.")
+        st.stop()
+
+    # User selects a specific sub-indicator if available
+    if indicator_col:
+        indicator_options = df[indicator_col].dropna().unique()
+        chosen_indicator = st.sidebar.selectbox(f"Select {indicator_col}", indicator_options)
+        row = df[df[indicator_col] == chosen_indicator].iloc[0]
+        title_extra = f" - {chosen_indicator}"
+    else:
+        row = df.iloc[0]
+        title_extra = ""
+
+    data = pd.DataFrame({
+        'Year': [int(yr) for yr in year_cols],
+        'Value': row[year_cols].values
+    }).dropna()
+    data['YoY Growth %'] = data['Value'].pct_change() * 100
 
 # Display raw data
 with st.expander("🔍 Preview Raw Data"):
