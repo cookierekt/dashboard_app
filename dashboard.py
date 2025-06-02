@@ -6,7 +6,7 @@ import numpy as np
 st.set_page_config(page_title="US Economic Data Dashboard", layout="wide")
 EXCEL_FILE = 'USA.xlsx'
 
-# Define sheet names and friendly titles
+# Sheet names and friendly titles
 sheet_dict = {
     'Nominal GDP': "Nominal GDP (in billions USD)",
     'Real GDP': "Real GDP (chained, billions USD)",
@@ -19,20 +19,16 @@ sheet_dict = {
     'Unemployment Rate': "Unemployment Rate (%)"
 }
 
-st.title("🇺🇸 US Economic Data Dashboard")
-st.markdown("> Interactive dashboard for tracking key US macroeconomic indicators.")
-
-# Sidebar selector
-selected_sheet = st.sidebar.selectbox("Select Economic Indicator", list(sheet_dict.keys()), format_func=lambda x: sheet_dict[x])
-
+# --- Helper for parsing unemployment rate sheet
 def parse_unemployment_sheet(file, sheet_name):
     df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None)
-    # Find row where first column is 'Year'
-    header_row = df_raw[df_raw.iloc[:,0] == 'Year'].index[0]
+    header_row = df_raw[df_raw.iloc[:, 0] == 'Year'].index
+    if len(header_row) == 0:
+        st.error("Unemployment sheet: Could not find 'Year' row.")
+        st.stop()
+    header_row = header_row[0]
     df = pd.read_excel(file, sheet_name=sheet_name, header=header_row)
-    # Drop empty columns
     df = df.loc[:, ~df.columns.isna()]
-    # Only keep Year and months
     months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     keep_cols = ['Year'] + months
     df = df[keep_cols]
@@ -43,28 +39,44 @@ def parse_unemployment_sheet(file, sheet_name):
     df['Yearly Avg'] = df[months].mean(axis=1)
     return df
 
+st.title("🇺🇸 US Economic Data Dashboard")
+st.markdown("> Interactive dashboard for tracking key US macroeconomic indicators.")
 
-# Attempt to intelligently find the right header row
+selected_sheet = st.sidebar.selectbox("Select Economic Indicator", list(sheet_dict.keys()), format_func=lambda x: sheet_dict[x])
+
+# --- Unemployment Sheet Handling
 if selected_sheet == 'Unemployment Rate':
     df = parse_unemployment_sheet(EXCEL_FILE, selected_sheet)
-    data = pd.DataFrame({
-        'Year': df['Year'],
-        'Value': df['Yearly Avg']
-    }).dropna()
-    # YoY Growth
+    months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    display_type = st.sidebar.radio("Show", ["Yearly Average", "Monthly"])
+    if display_type == "Yearly Average":
+        data = pd.DataFrame({
+            'Year': df['Year'],
+            'Value': df['Yearly Avg']
+        }).dropna()
+        chart_label = "Yearly Average"
+    else:
+        month = st.sidebar.selectbox("Month", months)
+        data = pd.DataFrame({
+            'Year': df['Year'],
+            'Value': df[month]
+        }).dropna()
+        chart_label = f"Monthly ({month})"
     data['YoY Growth %'] = data['Value'].pct_change() * 100
-    title_extra = ""
+    title_extra = f" - {chart_label}"
+
+# --- All Other Sheets
 else:
-    # Attempt to intelligently find the right header row for all other sheets
+    # Try to auto-detect header row
     df = None
     header_found = False
-    for skip in range(5, 11):
+    for skip in range(5, 12):
         try:
             temp_df = pd.read_excel(EXCEL_FILE, sheet_name=selected_sheet, skiprows=skip)
             columns = [str(col).strip() for col in temp_df.columns]
             if any(col.lower() in ["line", "description"] for col in columns):
                 df = temp_df
-                df.columns = columns  # Clean up columns
+                df.columns = columns
                 header_found = True
                 break
         except Exception as e:
@@ -72,21 +84,17 @@ else:
     if not header_found or df is None:
         st.error("Could not detect the header or the required columns in the sheet.")
         st.stop()
-
-    # Intelligent column detection
+    # Sub-indicator column search
     indicator_col = None
     for col in ["Description", "Line", "Indicator", "Unnamed: 0"]:
         if col in df.columns:
             indicator_col = col
             break
-
-    # Find year columns (numeric column headers, often 4-digit)
     year_cols = [col for col in df.columns if str(col).isdigit() and len(str(col)) == 4]
     if not year_cols:
         st.error("No year columns found! Data might be in an unexpected format.")
         st.stop()
-
-    # User selects a specific sub-indicator if available
+    # Sub-indicator selection if available
     if indicator_col:
         indicator_options = df[indicator_col].dropna().unique()
         chosen_indicator = st.sidebar.selectbox(f"Select {indicator_col}", indicator_options)
@@ -95,65 +103,26 @@ else:
     else:
         row = df.iloc[0]
         title_extra = ""
-
+    # Prepare for plotting
     data = pd.DataFrame({
         'Year': [int(yr) for yr in year_cols],
         'Value': row[year_cols].values
     }).dropna()
     data['YoY Growth %'] = data['Value'].pct_change() * 100
 
-# Display raw data
+# --- Data preview
 with st.expander("🔍 Preview Raw Data"):
-    st.dataframe(df.head(10), use_container_width=True)
+    st.dataframe(df.head(12), use_container_width=True)
 
-# --- Intelligent column detection
-indicator_col = None
-for col in ["Description", "Line", "Indicator", "Unnamed: 0"]:
-    if col in df.columns:
-        indicator_col = col
-        break
-
-# Find year columns (numeric column headers, often 4-digit)
-year_cols = [col for col in df.columns if str(col).isdigit() and len(str(col)) == 4]
-if not year_cols:
-    st.error("No year columns found! Data might be in an unexpected format.")
-    st.stop()
-
-# User selects a specific sub-indicator if available
-if indicator_col:
-    # Only show non-null indicator descriptions
-    indicator_options = df[indicator_col].dropna().unique()
-    chosen_indicator = st.sidebar.selectbox(f"Select {indicator_col}", indicator_options)
-    row = df[df[indicator_col] == chosen_indicator].iloc[0]
-    title_extra = f" - {chosen_indicator}"
-else:
-    # Fallback: use the first row
-    row = df.iloc[0]
-    title_extra = ""
-
-# Prepare data for plotting
-data = pd.DataFrame({
-    'Year': [int(yr) for yr in year_cols],
-    'Value': row[year_cols].values
-}).dropna()
-
-# Calculate growth rates if there are at least 2 years
-data['YoY Growth %'] = data['Value'].pct_change() * 100
-
-# Plot interactive line chart
-fig = px.line(data, x='Year', y='Value', title=f"{sheet_dict[selected_sheet]}{title_extra} (Line Chart)", markers=True)
-fig.update_layout(xaxis_title="Year", yaxis_title=sheet_dict[selected_sheet])
-
-# Add option for users to switch to bar chart
+# --- Plot
 chart_type = st.radio("Chart Type", ["Line", "Bar"], horizontal=True)
-if chart_type == "Bar":
-    fig = px.bar(data, x='Year', y='Value', title=f"{sheet_dict[selected_sheet]}{title_extra} (Bar Chart)")
-
+fig = px.line(data, x='Year', y='Value', title=f"{sheet_dict[selected_sheet]}{title_extra}", markers=True) if chart_type == "Line" \
+    else px.bar(data, x='Year', y='Value', title=f"{sheet_dict[selected_sheet]}{title_extra}")
+fig.update_layout(xaxis_title="Year", yaxis_title=sheet_dict[selected_sheet])
 st.plotly_chart(fig, use_container_width=True)
 
-# Display summary statistics and analysis
+# --- Metrics
 st.subheader("📊 Key Metrics & Analysis")
-
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Latest Value", f"{data['Value'].iloc[-1]:,.2f}")
@@ -164,14 +133,12 @@ with col3:
     avg = data['Value'].mean()
     st.metric("Average (All Years)", f"{avg:,.2f}")
 
-# Professional analysis (dynamic comments)
+# --- Professional Insight
 st.markdown("### 📈 Professional Insight")
 try:
-    # Ensure numeric types for regression
     years_numeric = pd.to_numeric(data['Year'], errors='coerce')
     values_numeric = pd.to_numeric(data['Value'], errors='coerce')
     mask = (~years_numeric.isna()) & (~values_numeric.isna())
-    # Only run if enough valid data
     if mask.sum() > 3:
         trend = np.polyfit(years_numeric[mask], values_numeric[mask], 1)[0]
         if trend > 0:
@@ -188,7 +155,7 @@ try:
 except Exception as e:
     st.error(f"Trend analysis error: {e}")
 
-# Show growth rates chart if relevant
+# --- Growth rates
 if data['YoY Growth %'].notnull().sum() > 2:
     st.markdown("#### Year-on-Year Growth Rate")
     fig2 = px.bar(data, x='Year', y='YoY Growth %', title=f"Year-on-Year Growth Rate - {sheet_dict[selected_sheet]}{title_extra}")
