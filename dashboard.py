@@ -10,7 +10,7 @@ sheet_dict = {
     'Nominal GDP': "Nominal GDP (in billions USD)",
     'Real GDP': "Real GDP (chained, billions USD)",
     'Real GDP Perc Change': "Real GDP Percent Change",
-    'Contribution to real GDP': "Contribution to Real GDP Growth",
+    #'Contribution to real GDP': "Contribution to Real GDP Growth",
     'Personal Income': "Personal Income (billions USD)",
     'PCE': "Personal Consumption Expenditures",
     'Govt receipts and exp': "Government Receipts & Expenditures",
