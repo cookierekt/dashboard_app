@@ -18,6 +18,34 @@ sheet_dict = {
     'Unemployment Rate': "Unemployment Rate (%)"
 }
 
+line_name_map = {
+    "1": "Personal income",
+    "2": "Compensation of employees",
+    "3": "Wages and salaries",
+    "4": "Private industries",
+    "5": "Government",
+    "6": "Supplements to wages and salaries",
+    "7": "Employer contributions for employee pension and insurance funds1",
+    "8": "Employer contributions for government social insurance",
+    "9": "Proprietors' income with inventory valuation and capital consumption adjustments",
+    "10": "Farm",
+    "11": "Nonfarm",
+    "12": "Rental income of persons with capital consumption adjustment",
+    "13": "Personal income receipts on assets",
+    "14": "Personal interest income",
+    "15": "Personal dividend income",
+    "16": "Personal current transfer receipts",
+    "17": "Government social benefits to persons",
+    "18": "Social security2",
+    "19": "Medicare3",
+    "20": "Medicaid",
+    "21": "Unemployment insurance",
+    "22": "Veterans' benefits",
+    "23": "Other",
+    "24": "Other current transfer receipts, from business (net)",
+    "25": "Less: Contributions for government social insurance, domestic"
+}
+
 def parse_unemployment_sheet(file, sheet_name):
     df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None)
     header_row = df_raw[df_raw.iloc[:, 0] == 'Year'].index
@@ -82,7 +110,14 @@ else:
         st.error("No year columns found! Data might be in an unexpected format.")
         st.stop()
 
-    if indicator_col:
+    if selected_sheet == 'Personal Income' and indicator_col == 'Line':
+        df['Line Name'] = df['Line'].astype(str).map(line_name_map).fillna(df['Line'].astype(str))
+        indicator_options = df['Line Name'].dropna().unique()
+        chosen_indicator = st.sidebar.selectbox("Select Line Item", indicator_options)
+        line_number = [k for k, v in line_name_map.items() if v == chosen_indicator]
+        row = df[df['Line'].astype(str).isin(line_number)].iloc[0]
+        title_extra = f" - {chosen_indicator}"
+    elif indicator_col:
         indicator_options = df[indicator_col].dropna().unique()
         chosen_indicator = st.sidebar.selectbox(f"Select {indicator_col}", indicator_options)
         row = df[df[indicator_col] == chosen_indicator].iloc[0]
