@@ -111,11 +111,14 @@ else:
         st.stop()
 
     if selected_sheet == 'Personal Income' and indicator_col == 'Line':
+        df['Line'] = df['Line'].astype(float).astype(int).astype(str)
+        df['Line Name'] = df['Line'].map(line_name_map)
         indicator_options = df['Line Name'].dropna().unique()
         chosen_line_name = st.sidebar.selectbox("Select Line Item", indicator_options)
         line_number = [k for k, v in line_name_map.items() if v == chosen_line_name]
-        row = df[df['Line'].astype(int).astype(str).isin(line_number)].iloc[0]
+        row = df[df['Line'].isin(line_number)].iloc[0]
         title_extra = f" - {chosen_line_name}"
+
     elif indicator_col:
         indicator_options = df[indicator_col].dropna().unique()
         chosen_indicator = st.sidebar.selectbox(f"Select {indicator_col}", indicator_options)
