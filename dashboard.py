@@ -111,6 +111,7 @@ else:
         st.stop()
 
     if selected_sheet == 'Personal Income' and indicator_col == 'Line':
+        df = df[pd.to_numeric(df['Line'], errors='coerce').notnull()].copy()
         df['Line'] = df['Line'].astype(float).astype(int).astype(str)
         df['Line Name'] = df['Line'].map(line_name_map)
         indicator_options = df['Line Name'].dropna().unique()
