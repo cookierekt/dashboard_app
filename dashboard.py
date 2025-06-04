@@ -6,7 +6,6 @@ import numpy as np
 st.set_page_config(page_title="US Economic Data Dashboard", layout="wide")
 EXCEL_FILE = 'USA.xlsx'
 
-# Sheet names and friendly titles
 sheet_dict = {
     'Nominal GDP': "Nominal GDP (in billions USD)",
     'Real GDP': "Real GDP (chained, billions USD)",
@@ -19,7 +18,6 @@ sheet_dict = {
     'Unemployment Rate': "Unemployment Rate (%)"
 }
 
-# --- Helper for parsing unemployment rate sheet
 def parse_unemployment_sheet(file, sheet_name):
     df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None)
     header_row = df_raw[df_raw.iloc[:, 0] == 'Year'].index
@@ -39,35 +37,28 @@ def parse_unemployment_sheet(file, sheet_name):
     df['Yearly Avg'] = df[months].mean(axis=1)
     return df
 
-st.title("🇺🇸 US Economic Data Dashboard")
+st.title("US Economic Data Dashboard")
+st.markdown("**Made by Rohan Singh**")
 st.markdown("> Interactive dashboard for tracking key US macroeconomic indicators.")
 
 selected_sheet = st.sidebar.selectbox("Select Economic Indicator", list(sheet_dict.keys()), format_func=lambda x: sheet_dict[x])
+st.subheader(f"\U0001F4C2 {sheet_dict[selected_sheet]}")
 
-# --- Unemployment Sheet Handling
 if selected_sheet == 'Unemployment Rate':
     df = parse_unemployment_sheet(EXCEL_FILE, selected_sheet)
     months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    display_type = st.sidebar.radio("Show", ["Yearly Average", "Monthly"])
+    display_type = st.sidebar.radio("Show", ["Yearly Average", "Monthly"], horizontal=True)
     if display_type == "Yearly Average":
-        data = pd.DataFrame({
-            'Year': df['Year'],
-            'Value': df['Yearly Avg']
-        }).dropna()
+        data = pd.DataFrame({'Year': df['Year'], 'Value': df['Yearly Avg']}).dropna()
         chart_label = "Yearly Average"
     else:
         month = st.sidebar.selectbox("Month", months)
-        data = pd.DataFrame({
-            'Year': df['Year'],
-            'Value': df[month]
-        }).dropna()
+        data = pd.DataFrame({'Year': df['Year'], 'Value': df[month]}).dropna()
         chart_label = f"Monthly ({month})"
     data['YoY Growth %'] = data['Value'].pct_change() * 100
     title_extra = f" - {chart_label}"
 
-# --- All Other Sheets
 else:
-    # Try to auto-detect header row
     df = None
     header_found = False
     for skip in range(5, 12):
@@ -79,22 +70,18 @@ else:
                 df.columns = columns
                 header_found = True
                 break
-        except Exception as e:
+        except Exception:
             continue
     if not header_found or df is None:
         st.error("Could not detect the header or the required columns in the sheet.")
         st.stop()
-    # Sub-indicator column search
-    indicator_col = None
-    for col in ["Description", "Line", "Indicator", "Unnamed: 0"]:
-        if col in df.columns:
-            indicator_col = col
-            break
+
+    indicator_col = next((col for col in ["Description", "Line", "Indicator", "Unnamed: 0"] if col in df.columns), None)
     year_cols = [col for col in df.columns if str(col).isdigit() and len(str(col)) == 4]
     if not year_cols:
         st.error("No year columns found! Data might be in an unexpected format.")
         st.stop()
-    # Sub-indicator selection if available
+
     if indicator_col:
         indicator_options = df[indicator_col].dropna().unique()
         chosen_indicator = st.sidebar.selectbox(f"Select {indicator_col}", indicator_options)
@@ -103,26 +90,25 @@ else:
     else:
         row = df.iloc[0]
         title_extra = ""
-    # Prepare for plotting
+
     data = pd.DataFrame({
         'Year': [int(yr) for yr in year_cols],
         'Value': row[year_cols].values
     }).dropna()
     data['YoY Growth %'] = data['Value'].pct_change() * 100
 
-# --- Data preview
-with st.expander("🔍 Preview Raw Data"):
+min_year, max_year = int(data['Year'].min()), int(data['Year'].max())
+year_range = st.slider("Select Year Range", min_year, max_year, (min_year, max_year), step=1)
+data = data[(data['Year'] >= year_range[0]) & (data['Year'] <= year_range[1])]
+
+with st.expander("\U0001F50D Preview Raw Data"):
     st.dataframe(df.head(12), use_container_width=True)
 
-# --- Plot
-chart_type = st.radio("Chart Type", ["Line", "Bar"], horizontal=True)
-fig = px.line(data, x='Year', y='Value', title=f"{sheet_dict[selected_sheet]}{title_extra}", markers=True) if chart_type == "Line" \
-    else px.bar(data, x='Year', y='Value', title=f"{sheet_dict[selected_sheet]}{title_extra}")
-fig.update_layout(xaxis_title="Year", yaxis_title=sheet_dict[selected_sheet])
+fig = px.line(data, x='Year', y='Value', title=f"{sheet_dict[selected_sheet]}{title_extra}", markers=True)
+fig.update_layout(xaxis_title="Year", yaxis_title=sheet_dict[selected_sheet], title_x=0.5)
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Metrics
-st.subheader("📊 Key Metrics & Analysis")
+st.subheader("\U0001F4CA Key Metrics & Analysis")
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Latest Value", f"{data['Value'].iloc[-1]:,.2f}")
@@ -133,8 +119,7 @@ with col3:
     avg = data['Value'].mean()
     st.metric("Average (All Years)", f"{avg:,.2f}")
 
-# --- Professional Insight
-st.markdown("### 📈 Professional Insight")
+st.markdown("### \U0001F4C8 Professional Insight")
 try:
     years_numeric = pd.to_numeric(data['Year'], errors='coerce')
     values_numeric = pd.to_numeric(data['Value'], errors='coerce')
@@ -155,11 +140,10 @@ try:
 except Exception as e:
     st.error(f"Trend analysis error: {e}")
 
-# --- Growth rates
 if data['YoY Growth %'].notnull().sum() > 2:
     st.markdown("#### Year-on-Year Growth Rate")
     fig2 = px.bar(data, x='Year', y='YoY Growth %', title=f"Year-on-Year Growth Rate - {sheet_dict[selected_sheet]}{title_extra}")
-    fig2.update_layout(yaxis_title="YoY Growth (%)")
+    fig2.update_layout(yaxis_title="YoY Growth (%)", title_x=0.5)
     st.plotly_chart(fig2, use_container_width=True)
 else:
     st.info("Year-on-year growth rate not available for this indicator.")
