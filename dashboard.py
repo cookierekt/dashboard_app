@@ -46,8 +46,7 @@ line_name_map = {
     "25": "Less: Contributions for government social insurance, domestic"
 }
 
-
-real_gdp_line_map = {
+nominal_gdp_line_map = {
     "1": "Gross domestic product",
     "2": "Personal consumption expenditures",
     "3": "Goods",
@@ -150,14 +149,14 @@ else:
         line_number = [k for k, v in line_name_map.items() if v == chosen_line_name]
         row = df[df['Line'].isin(line_number)].iloc[0]
         title_extra = f" - {chosen_line_name}"
-        
-    if selected_sheet == 'Real GDP' and indicator_col == 'Line':
+
+    elif selected_sheet == 'Nominal GDP' and indicator_col == 'Line':
         df = df[pd.to_numeric(df['Line'], errors='coerce').notnull()].copy()
         df['Line'] = df['Line'].astype(float).astype(int).astype(str)
-        df['Line Name'] = df['Line'].map(real_gdp_line_map)
+        df['Line Name'] = df['Line'].map(nominal_gdp_line_map)
         indicator_options = df['Line Name'].dropna().unique()
         chosen_line_name = st.sidebar.selectbox("Select Line Item", indicator_options)
-        line_number = [k for k, v in real_gdp_line_map.items() if v == chosen_line_name]
+        line_number = [k for k, v in nominal_gdp_line_map.items() if v == chosen_line_name]
         row = df[df['Line'].isin(line_number)].iloc[0]
         title_extra = f" - {chosen_line_name}"
 
