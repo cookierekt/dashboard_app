@@ -75,6 +75,13 @@ nominal_gdp_line_map = {
     "26": "State and local"
 }
 
+real_gdp_line_map = {
+    "7": "Gross private domestic investment",
+    "15": "Net exports of goods and services",
+    "22": "Government consumption expenditures and gross investment",
+    "27": "Residual"
+}
+
 
 def parse_unemployment_sheet(file, sheet_name):
     df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None)
@@ -157,6 +164,16 @@ else:
         indicator_options = df['Line Name'].dropna().unique()
         chosen_line_name = st.sidebar.selectbox("Select Line Item", indicator_options)
         line_number = [k for k, v in nominal_gdp_line_map.items() if v == chosen_line_name]
+        row = df[df['Line'].isin(line_number)].iloc[0]
+        title_extra = f" - {chosen_line_name}"
+        
+    elif selected_sheet == 'Real GDP' and indicator_col == 'Line':
+        df = df[pd.to_numeric(df['Line'], errors='coerce').notnull()].copy()
+        df['Line'] = df['Line'].astype(float).astype(int).astype(str)
+        df['Line Name'] = df['Line'].map(real_gdp_line_map)
+        indicator_options = df['Line Name'].dropna().unique()
+        chosen_line_name = st.sidebar.selectbox("Select Line Item", indicator_options)
+        line_number = [k for k, v in real_gdp_line_map.items() if v == chosen_line_name]
         row = df[df['Line'].isin(line_number)].iloc[0]
         title_extra = f" - {chosen_line_name}"
 
