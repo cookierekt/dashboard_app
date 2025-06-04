@@ -46,6 +46,37 @@ line_name_map = {
     "25": "Less: Contributions for government social insurance, domestic"
 }
 
+
+real_gdp_line_map = {
+    "1": "Gross domestic product",
+    "2": "Personal consumption expenditures",
+    "3": "Goods",
+    "4": "Durable goods",
+    "5": "Nondurable goods",
+    "6": "Services",
+    "7": "Gross private domestic investment",
+    "8": "Fixed investment",
+    "9": "Nonresidential",
+    "10": "Structures",
+    "11": "Equipment",
+    "12": "Intellectual property products",
+    "13": "Residential",
+    "14": "Change in private inventories",
+    "15": "Net exports of goods and services",
+    "16": "Exports",
+    "17": "Goods",
+    "18": "Services",
+    "19": "Imports",
+    "20": "Goods",
+    "21": "Services",
+    "22": "Government consumption expenditures and gross investment",
+    "23": "Federal",
+    "24": "National defense",
+    "25": "Nondefense",
+    "26": "State and local"
+}
+
+
 def parse_unemployment_sheet(file, sheet_name):
     df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None)
     header_row = df_raw[df_raw.iloc[:, 0] == 'Year'].index
@@ -117,6 +148,16 @@ else:
         indicator_options = df['Line Name'].dropna().unique()
         chosen_line_name = st.sidebar.selectbox("Select Line Item", indicator_options)
         line_number = [k for k, v in line_name_map.items() if v == chosen_line_name]
+        row = df[df['Line'].isin(line_number)].iloc[0]
+        title_extra = f" - {chosen_line_name}"
+        
+    if selected_sheet == 'Real GDP' and indicator_col == 'Line':
+        df = df[pd.to_numeric(df['Line'], errors='coerce').notnull()].copy()
+        df['Line'] = df['Line'].astype(float).astype(int).astype(str)
+        df['Line Name'] = df['Line'].map(real_gdp_line_map)
+        indicator_options = df['Line Name'].dropna().unique()
+        chosen_line_name = st.sidebar.selectbox("Select Line Item", indicator_options)
+        line_number = [k for k, v in real_gdp_line_map.items() if v == chosen_line_name]
         row = df[df['Line'].isin(line_number)].iloc[0]
         title_extra = f" - {chosen_line_name}"
 
